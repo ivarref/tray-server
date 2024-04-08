@@ -277,5 +277,6 @@ public class TrayServer {
         });
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
+        info("WebServer running at http://localhost:17999");
     }
 }
