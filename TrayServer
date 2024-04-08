@@ -1,3 +1,4 @@
+#!/usr/bin/env -S java --source 21
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
