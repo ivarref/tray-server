@@ -234,7 +234,7 @@ public class TrayServer {
     public static void sendStringResponse(int code, String body, HttpExchange exchange) {
         try (OutputStream os = exchange.getResponseBody();
              ByteArrayInputStream bis = new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8))) {
-            exchange.sendResponseHeaders(200, body.length());
+            exchange.sendResponseHeaders(code, body.length());
             bis.transferTo(os);
         } catch (IOException e) {
             throw new RuntimeException(e);
