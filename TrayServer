@@ -95,11 +95,14 @@ public class TrayServer {
     // https://www.iconsdb.com/orange-icons/circle-icon.html 32x32 png
     public static final Image orangeCircle = getImage("iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAA7EAAAOxAGVKw4bAAAB6ElEQVRYhcXXO2gUURSH8d+9BBGrECSChQQ7QUJQwcInhKBFGuvbiViIIlYWFhYqgiJYCYKVsgjpbMQiUexVUqQIgjGEECxEQooQtnAtZm7cPCSbdXfn382D+b4587jnBC2mUdOH0xjDMRxGPyJWMI9pfMBkSNZauW5oAbwfN3AFB1v0XcZLPA7JYlsCjZqIa7inuNN2soZHeBCSessCjZp+vMbFNsGb8wWXQrKwo0CjZhBTONoheM4ixkIy+0+B8s4/YrjD8JwlnArJfN4Rm+ARr7oIp3iJ3zRq9m4RwFWMdxGeM4y7eSOwXvpvGOiBANRxJCRzuQLXewiHPbgNoXz233GohwKwigMRJyqAwz6MR5yvAJ4zGnG8QoGRiKEKBYai9heaTqQv7nxOd5ObiapSj/xdGCrIQsTnCgWmI95XKDAV8Uk1j2EVb2NIfuN5BQITIVnJn+Ez/OwhvI6HlA1JSFZwp4cCT0PydV2gzAu86wF8xuaOKKdRM6BoSjvdEecs4UxI5vKODb/ikPxSjF4zXYKPNsO3CJQSP3AOkx2ETyva8dnNB7ZdjMpKXMBN/7dWrOE+TjbPAhtYO12hnJRu4TIGWwTn4fTJduPYrgSaRPpwVvGOjCjG8wFFFZexoCj1lF2M538ASU9ud/YbD64AAAAASUVORK5CYII=");
 
+    public static final Image startImage = greenCircle;
+
     public static Image getImage(String base64) {
         return (new ImageIcon(decode(base64))).getImage();
     }
 
-    public static final AtomicReference<Image> currImage = new AtomicReference<>(orangeCircle);
+    public static final AtomicReference<Image> currImage = new AtomicReference<>(startImage);
+    public static final AtomicReference<String> currLink = new AtomicReference<>("https://github.com/ivarref/tray-server");
 
     public static synchronized void setImage(Image newImage) {
         if (currImage.get() == newImage) {
@@ -118,7 +121,7 @@ public class TrayServer {
             return;
         }
         final PopupMenu popup = new PopupMenu();
-        trayIcon = new TrayIcon(orangeCircle);
+        trayIcon = new TrayIcon(startImage);
         trayIcon.setImageAutoSize(true);
         final SystemTray tray = SystemTray.getSystemTray();
 
@@ -158,7 +161,7 @@ public class TrayServer {
 
         trayIcon.addActionListener(e -> {
             try {
-                Desktop.getDesktop().browse(new URI("http://www.example.com"));
+                Desktop.getDesktop().browse(new URI(currLink.get()));
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             } catch (URISyntaxException ex) {
@@ -269,7 +272,12 @@ public class TrayServer {
                 } else {
                     warn("Unknown img parameter: " + newImg);
                 }
-                info("request for path: " + path + " with img: " + newImg);
+
+                String newLink = getQueryParamValue(exchange, "link", "::none");
+                if (!newLink.equals("::none")) {
+                    currLink.set(newLink);
+                }
+                info("request for path: " + path + " with img: " + newImg + " link: " + newLink);
                 sendStringResponse(200, "OK\n", exchange);
             } catch (Throwable t) {
                 t.printStackTrace();
