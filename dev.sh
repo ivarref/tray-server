@@ -4,4 +4,4 @@ echo "building ..."
 ./build.sh
 
 echo "launching ..."
-./TrayServer
+./TrayServer || true

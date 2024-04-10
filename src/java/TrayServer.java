@@ -12,12 +12,16 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -88,11 +92,26 @@ public class TrayServer {
     // https://www.iconsdb.com/green-icons/circle-icon.html 32x32 png
     public static final Image greenCircle = getImage("iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAA7EAAAOxAGVKw4bAAAB20lEQVRYhcXXvWsUQRjH8U/GQ8UqHBLBQoKdICGoXXwJhIBFGv8AGxEL0cLKwsIBEUURrATBShHBzkYscr70KlekCIIxhBAsNIQrYrhCLMbhYu4km+Pu9tft7rDf78zsy/MMKZqogpOYxjEcxjACGlhEHe8wK9ooctuhAuD9uIqLOFhQdw1PcV+03J1AFHAZt6SZdpMN3MNtUbO4QDSMFzjbJXhrPuOcaGl7gWgENRztETxnGdOi+f8LpJl/wFiP4TkrmBAt5hNhEzzgWR/hpIf4lWhvuwCXMNNHeM4YbuaDtAVp6b+iOgABaOKIaCGvwJUBwmE3rsPQ373/hkMDFIB1HAg4UQIc9mEmYLIEeM5UwPESBcYDRksUGA26/9H0IpWw/Zj+JhcTZaUZaP0YSshSwKcSBeoBb0sUqAV8VM42rON1EP3G4xIEXooa+TV8hB8DhDdxh1yQRA3cGKDAQ9GXlkDKE7wZAHxOW0WUE1WlorTXFXHOCk6JFvKJfz/F0arUes31CT61Gd4ukCS+4wxmewivS+X4/NYLuzoOf++XSc+xigns6RK8gbs4L/rZaUCR5nQE13ABIwXBuTl90Kkd25lAS6SC09IzMi6151VpG9ewJC11zQ7a8z8geGNhy88fnQAAAABJRU5ErkJggg==");
 
+    // https://www.iconsdb.com/guacamole-green-icons/circle-icon.html
+    public static final Image softGreen = getImage("iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAA7EAAAOxAGVKw4bAAAB9UlEQVRYhcXXO2gUURSH8d9egohVCBLBQoLdgISggoVPCEGLNLZTiliIIlYWt7DQQVAEK0GwUljBzkYssoq9SorABsEYQggWIiFFCFuIxeyENYlksu7u/Lt5MN83Zx73nJqSqTezIZzBFI7jKIYRsIZFzOIDZtIkbpS5bq0E+CBu4ioOl/RdxQs8SpO43JVAvZkFXMc9+Z12kw08RJYmsVVaoN7MhvEKl7oEb80XXE6TuLSrQL2ZjaKBYz2CF1nGVJrE+X8KtO/8I8Z7DC+ygtNpEheLHaEDHvCyj3Dyl/hNvZnt3yaAa5juI7zIOO4WGzU2S/8NIwMQgBaSNIkLRQVuDBAO+3AHau1n/x1HBigA6zgUcLICOBzAdMCFCuBFJgNOVCgwETBWocBY0P1C04sMhd3P6W+KZqKqtIK8k6kqSwGfKxSYDXhfoUAj4JNqHsM63oY0ib/xrAKB12kS14rP8Cl+DhDewgPaDUmaxDXEAQo8SZP4dVOgned4NwD4nK0dUZF6MxuRN6W97oiLrOBsmsSFYsdfv+I0ib/ko9dcn+CTnfBtAm2JHziPmR7CZ+Xt+PzWAzsuRu1KXMQt/7dWbOA+TnXOAp0pM5yO4jauYLQkuBhOH+80ju1JoENkCOfk78iEfDwfkVdxFUvyUjfsYTz/AyNDf+XwTOOTAAAAAElFTkSuQmCC");
+
     // https://www.iconsdb.com/soylent-red-icons/circle-icon.html 32x32 png
     public static final Image redCircle = getImage("iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAA7EAAAOxAGVKw4bAAAB8klEQVRYhcXXu2sUURiG8d8ewiBWIUgECznYCRKCChbeFkLQIo3/goiFKGJlYWGhIiiClSBYaSHY2QSLRMdeJUWKIBiHEIKFSEgRwinEYnbCmkSyWXd33m4uzPPMN5fzfQ0dpmhmQziDSRzHEQwjYA0F5vABMzFPG51ct9EB+ABu4AoOdei7ipd4HPO03JVA0cwCruGe8k67yQYe4UHMU+pYoGhmw3iNi12Ct+YLLsU8Le0qUDSzUcziWI/gVZYxGfO08E+B1p1/xFiP4VVWcDrmqah2hDZ4wKs+wilf4rdFM9u3TQBXMdVHeJUx3K02GmyW/htGBiAACUdjnharClwfIBwy3IZG69l/x+EBCsA6DgacrAEO+zEV0KwBXmUi4ESNAuMBsUaBGHS/0PQiQ2H3c/qbqpmoKykoO5m6shTwuUaBuYD3NQrMBnxSz2NYx3SIefqN5zUIvIl5Wqs+w2f4OUB4wkNaDUnM0xruDFDgaczT102BVl7g3QDg87Z2RFWKZjaibEp73RFXWcHZmKfFasdfv+KYp1/K0Wu+T/CJdvg2gZbED5zHTA/hc8p2fGHrgR0Xo1YlLuCm/1srNnAfp9pngfZ0MpyO4hYuY7RDcDWcPtlpHNuTQJvIEM4p35Fx5Xg+oqziKpaUpZ61h/H8D5n/helMUpbSAAAAAElFTkSuQmCC");
+    public static final Image softRed = getImage("iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAA7EAAAOxAGVKw4bAAAB8UlEQVRYhcXXu2sUURiG8d85BBGrECSChQQ7QUJQwcIrSNAijf+CiIUoYiUHCwuVA4pgJQhWWgh2NmKRKPYqKVIEwRhCCBYiIUUIW7gWMxM2F8lm3d15u7kwzzPfXM73BW2mmfMATmMcx3AYg4hYwTym8RGTIaW1dq4b2gDvx01cxcE2fZfxEo9DSosdCTRzjriO+4o77SRreISHIaVG2wLNnAfxGpc6BG/OV1wOKS3sKNDMeRhTONoleJVFjIeUZv8pUN75J4x2GV5lCadCSvPVjtgCj3jVQzjFS/y2mfPeLQK4hokewquM4l61EVgv/XcM9UEAGjgSUpqrKnCjj3DYgzsQymf/A4f6KACrOBBxogY47MNExPka4FUuRByvUWAsYqRGgZGo84WmGxmIO5/T21TNRF1pREUnU1cWIr7UKDAd8aFGgamIz+p5DKt4F0NKf/C8BoE3IaWV6jN8hl99hDeQKRuSkNIK7vZR4GlI6du6QJkXeN8H+IzNHVGVZs5Diqa02x1xlSWcCSnNVTs2/IpDSr8Vo9dMj+AXWuFbBEqJnziHyS7CpxXt+OzmA9suRmUlLuKW/1sr1vAAJ1tngQ2sna5QTkq3cQXDbYKr4fTJduPYrgRaRAZwVvGOjCnG8yFFFZexoCj1lF2M538Bp3Z/mOPDH1UAAAAASUVORK5CYII=");
 
     // https://www.iconsdb.com/orange-icons/circle-icon.html 32x32 png
     public static final Image orangeCircle = getImage("iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAA7EAAAOxAGVKw4bAAAB6ElEQVRYhcXXO2gUURSH8d+9BBGrECSChQQ7QUJQwcInhKBFGuvbiViIIlYWFhYqgiJYCYKVsgjpbMQiUexVUqQIgjGEECxEQooQtnAtZm7cPCSbdXfn382D+b4587jnBC2mUdOH0xjDMRxGPyJWMI9pfMBkSNZauW5oAbwfN3AFB1v0XcZLPA7JYlsCjZqIa7inuNN2soZHeBCSessCjZp+vMbFNsGb8wWXQrKwo0CjZhBTONoheM4ixkIy+0+B8s4/YrjD8JwlnArJfN4Rm+ARr7oIp3iJ3zRq9m4RwFWMdxGeM4y7eSOwXvpvGOiBANRxJCRzuQLXewiHPbgNoXz233GohwKwigMRJyqAwz6MR5yvAJ4zGnG8QoGRiKEKBYai9heaTqQv7nxOd5ObiapSj/xdGCrIQsTnCgWmI95XKDAV8Uk1j2EVb2NIfuN5BQITIVnJn+Ez/OwhvI6HlA1JSFZwp4cCT0PydV2gzAu86wF8xuaOKKdRM6BoSjvdEecs4UxI5vKODb/ikPxSjF4zXYKPNsO3CJQSP3AOkx2ETyva8dnNB7ZdjMpKXMBN/7dWrOE+TjbPAhtYO12hnJRu4TIGWwTn4fTJduPYrgSaRPpwVvGOjCjG8wFFFZexoCj1lF2M538ASU9ud/YbD64AAAAASUVORK5CYII=");
+    public static final Image softOrange = getImage("iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAA7EAAAOxAGVKw4bAAAB9UlEQVRYhcXXO2gUURSH8d+9BBGrECSChQQ7QUK4ChY+IQQt0thvJWIhilhZWFioCIpgJQhWOiDY2YhFotjrkCJFEIwhhGAhElKEsIVrMTth85Bs1t2dfzcP5vvmzOOeE7SZRl4bwBlMIOEoBhGxigXM4BOmQsrW27luaAN8EDdxFYfb9F3BKzwJKVvqSKCR1yKu477iTjvJOh7jYUhZvW2BRl4bxBtc6hC8NTkuh5Qt7irQyGvDmMbxLsHLLGEipGzunwLNO/+M0S7DyyzjdEjZQrkjtsAjXvcQTvESv2vktf3bBHANkz2ElxnFvXIjsFH67xjqgwDUcSykbL6swI0+wmEf7kBoPvsfONJHAVjDoYiTFcDhACYjLlQALzMecaJCgbGIkQoFRqLOF5puZCDufk5vUzYTVaUeFZ1MVVmM+FqhwEzExwoFpiO+qOYxrOF9DCn7gxcVCLwNKVstP8Pn+NVHeB2PaDYkIWWruNtHgWchZd82BJp5iQ99gM/a2hGVaeS1IUVT2u2OuMwyzoaUzZc7Nv2KQ8p+K0av2R7Bx1vh2wSaEj9xHlNdhM8o2vG5rQd2XIyalbiIW/5vrVjHA5xqnQU2sXa7QnNSuo0rGG4TXA6nT3cax/Yk0CIygHOKd2RMMZ4PKaq4gkVFqaftYTz/C/zoftTxqXxBAAAAAElFTkSuQmCC");
+
+    public static final Map<String, Image> images = new TreeMap<>() {{
+        put("green", greenCircle);
+        put("orange", orangeCircle);
+        put("red", redCircle);
+
+        put("softgreen", softGreen);
+        put("softorange", softOrange);
+        put("softred", softRed);
+    }};
 
     public static final Image startImage = greenCircle;
 
@@ -101,6 +120,8 @@ public class TrayServer {
     }
 
     public static final AtomicReference<Image> currImage = new AtomicReference<>(startImage);
+    public static final AtomicLong lastImageSet = new AtomicLong(System.currentTimeMillis());
+    public static final AtomicReference<String> lastImageStr = new AtomicReference<>("green");
     public static final AtomicReference<String> currLink = new AtomicReference<>("https://github.com/ivarref/tray-server");
 
     public static synchronized void setImage(Image newImage) {
@@ -261,29 +282,46 @@ public class TrayServer {
         server.createContext("/", exchange -> {
             try {
                 String path = exchange.getRequestURI().getPath();
-                String newImg = getQueryParamValue(exchange, "img", "<missing>");
-                if ("red".equalsIgnoreCase(newImg)) {
-                    setImage(redCircle);
-                } else if ("green".equalsIgnoreCase(newImg)) {
-                    setImage(greenCircle);
-                } else if ("orange".equalsIgnoreCase(newImg)) {
-                    setImage(orangeCircle);
+                String newImgStr = getQueryParamValue(exchange, "img", "<missing>");
+                Image newImage = images.getOrDefault(newImgStr, null);
+                if (newImage == null) {
+                    warn("Unknown img parameter: " + newImgStr);
+                    warn("Valid img values are: " + images.keySet());
                 } else {
-                    warn("Unknown img parameter: " + newImg);
+                    lastImageSet.set(System.currentTimeMillis());
+                    lastImageStr.set(newImgStr);
+                    setImage(newImage);
                 }
 
                 String newLink = getQueryParamValue(exchange, "link", "::none");
                 if (!newLink.equals("::none")) {
                     currLink.set(newLink);
                 }
-                info("request for path: " + path + " with img: " + newImg + " link: " + newLink);
+                info("request for path: " + path + " with img: " + newImgStr + " link: " + newLink);
                 sendStringResponse(200, "OK\n", exchange);
             } catch (Throwable t) {
                 t.printStackTrace();
                 sendStringResponse(500, "500 Internal server error: " + t.getMessage() + " of type " + t.getClass().getSimpleName() + "\n", exchange);
             }
         });
-        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+        ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+        executor.submit(() -> {
+                    while (!Thread.interrupted()) {
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            return;
+                        }
+                        long noDataMillis = System.currentTimeMillis() - lastImageSet.get();
+                        if (Duration.ofMillis(noDataMillis).toMinutes() >= 5) {
+                            Image maybeSoftImage = images.getOrDefault("soft" + lastImageStr.get(), currImage.get());
+                            lastImageSet.set(System.currentTimeMillis());
+                            setImage(maybeSoftImage);
+                        }
+                    }
+                }
+        );
+        server.setExecutor(executor);
         server.start();
         info("WebServer running at http://localhost:17999");
     }
