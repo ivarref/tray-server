@@ -1,5 +1,11 @@
 # tray-server
 
+## Installation
+
+```
+curl https://raw.githubusercontent.com/ivarref/tray-server/main/TrayServer -O && chmod +x ./TrayServer
+```
+
 ## Usage
 
 Start the server:

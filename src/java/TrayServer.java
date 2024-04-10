@@ -8,6 +8,7 @@ import java.awt.event.ItemEvent;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -278,7 +279,16 @@ public class TrayServer {
         UIManager.put("swing.boldMetal", Boolean.FALSE);
         SwingUtilities.invokeLater(TrayServer::createAndShowGUI);
 
-        HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 17999), 0);
+        HttpServer server;
+        try {
+             server = HttpServer.create(new InetSocketAddress("localhost", 17999), 0);
+        } catch (BindException e) {
+            error("Could not bind to localhost:17999. Is TrayServer already running?");
+            error("Exiting");
+            System.exit(1);
+            return;
+        }
+
         server.createContext("/", exchange -> {
             try {
                 String path = exchange.getRequestURI().getPath();
