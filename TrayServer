@@ -196,11 +196,7 @@ public class TrayServer {
 
         cb1.addItemListener(e -> {
             int cb1Id = e.getStateChange();
-            if (cb1Id == ItemEvent.SELECTED) {
-                trayIcon.setImageAutoSize(true);
-            } else {
-                trayIcon.setImageAutoSize(false);
-            }
+            trayIcon.setImageAutoSize(cb1Id == ItemEvent.SELECTED);
         });
 
         trayIcon.setToolTip("mjau...");
