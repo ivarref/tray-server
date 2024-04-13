@@ -123,11 +123,12 @@ public class TrayServer {
     public static final AtomicReference<Image> currImage = new AtomicReference<>(startImage);
     public static final AtomicLong lastImageSet = new AtomicLong(System.currentTimeMillis());
     public static final AtomicReference<String> lastImageStr = new AtomicReference<>("green");
+    public static final AtomicReference<String> lastImageOrigin = new AtomicReference<>("default");
     public static final AtomicReference<String> currLink = new AtomicReference<>("https://github.com/ivarref/tray-server");
 
     public static synchronized void setImage(Image newImage) {
         if (currImage.get() == newImage) {
-            info("dropping setting new image");
+            debug("same image requested, dropping request");
         } else {
             currImage.set(newImage);
             trayIcon.setImage(newImage);
@@ -274,6 +275,29 @@ public class TrayServer {
         return queryMap.getOrDefault(key, defaultValue);
     }
 
+    public static boolean isMoreImportantImage(String currImage, String newImage) {
+        if (newImage.equalsIgnoreCase("red")) {
+            return true;
+        } else if (newImage.equalsIgnoreCase("orange") && currImage.equalsIgnoreCase("green")) {
+            return true;
+        } else {
+            return newImage.equalsIgnoreCase(currImage);
+        }
+    }
+
+    public static boolean canSetImage(String currOrigin, String newOrigin,
+                                      long lastImageSetMs, long nowMillis,
+                                      String currImageStr, String newImageStr) {
+        long msSinceLastSet = nowMillis - lastImageSetMs;
+        if (currOrigin.equalsIgnoreCase(newOrigin)) {
+            return true;
+        } else if (msSinceLastSet >= 60000) {
+            return true;
+        } else {
+            return isMoreImportantImage(currImageStr, newImageStr);
+        }
+    }
+
     public static void main(String[] args) throws IOException {
         info("TrayMonitor starting");
         UIManager.put("swing.boldMetal", Boolean.FALSE);
@@ -293,22 +317,29 @@ public class TrayServer {
             try {
                 String path = exchange.getRequestURI().getPath();
                 String newImgStr = getQueryParamValue(exchange, "img", "<missing>");
+                String newImgOrigin = getQueryParamValue(exchange, "origin", "default");
                 Image newImage = images.getOrDefault(newImgStr, null);
+                long nowMs = System.currentTimeMillis();
+                String newLink = getQueryParamValue(exchange, "link", "::none");
+
                 if (newImage == null) {
                     warn("Unknown img parameter: " + newImgStr);
                     warn("Valid img values are: " + images.keySet());
-                } else {
+                    sendStringResponse(200, "OK: no image requested. See usage at https://github.com/ivarref/tray-server\n", exchange);
+                } else if (canSetImage(lastImageOrigin.get(), newImgOrigin, lastImageSet.get(), nowMs, lastImageStr.get(), newImgStr)) {
                     lastImageSet.set(System.currentTimeMillis());
                     lastImageStr.set(newImgStr);
+                    lastImageOrigin.set(newImgOrigin);
                     setImage(newImage);
+                    if (!newLink.equals("::none")) {
+                        currLink.set(newLink);
+                    }
+                    info("request for path: " + path + " with img: " + newImgStr + " link: " + newLink + " origin: " + newImgOrigin);
+                    sendStringResponse(200, "OK\n", exchange);
+                } else {
+                    info("ignoring request for path: " + path + " with img: " + newImgStr + " link: " + newLink + " origin: " + newImgOrigin);
+                    sendStringResponse(200, "OK: ignore request\n", exchange);
                 }
-
-                String newLink = getQueryParamValue(exchange, "link", "::none");
-                if (!newLink.equals("::none")) {
-                    currLink.set(newLink);
-                }
-                info("request for path: " + path + " with img: " + newImgStr + " link: " + newLink);
-                sendStringResponse(200, "OK\n", exchange);
             } catch (Throwable t) {
                 t.printStackTrace();
                 sendStringResponse(500, "500 Internal server error: " + t.getMessage() + " of type " + t.getClass().getSimpleName() + "\n", exchange);
@@ -325,7 +356,6 @@ public class TrayServer {
                         long noDataMillis = System.currentTimeMillis() - lastImageSet.get();
                         if (Duration.ofMillis(noDataMillis).toMinutes() >= 5) {
                             Image maybeSoftImage = images.getOrDefault("soft" + lastImageStr.get(), currImage.get());
-                            lastImageSet.set(System.currentTimeMillis());
                             setImage(maybeSoftImage);
                         }
                     }
