@@ -1,5 +1,15 @@
 # tray-server
 
+## Requirements
+
+Java 11 or later, e.g.:
+
+```
+sdk install java 22-tem
+```
+
+where sdk is [sdkman](https://sdkman.io/).
+
 ## Installation
 
 ```

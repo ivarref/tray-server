@@ -184,9 +184,7 @@ public class TrayServer {
         trayIcon.addActionListener(e -> {
             try {
                 Desktop.getDesktop().browse(new URI(currLink.get()));
-            } catch (IOException ex) {
-                throw new RuntimeException(ex);
-            } catch (URISyntaxException ex) {
+            } catch (IOException | URISyntaxException ex) {
                 throw new RuntimeException(ex);
             }
 //            JOptionPane.showMessageDialog(null, "This dialog box is run from System Tray");
@@ -285,9 +283,7 @@ public class TrayServer {
         }
     }
 
-    public static boolean canSetImage(String currOrigin, String newOrigin,
-                                      long lastImageSetMs, long nowMillis,
-                                      String currImageStr, String newImageStr) {
+    public static boolean canSetImage(String currOrigin, String newOrigin, long lastImageSetMs, long nowMillis, String currImageStr, String newImageStr) {
         long msSinceLastSet = nowMillis - lastImageSetMs;
         if (currOrigin.equalsIgnoreCase(newOrigin)) {
             return true;
@@ -345,7 +341,7 @@ public class TrayServer {
                 sendStringResponse(500, "500 Internal server error: " + t.getMessage() + " of type " + t.getClass().getSimpleName() + "\n", exchange);
             }
         });
-        ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
         executor.submit(() -> {
                     while (!Thread.interrupted()) {
                         try {
