@@ -14,13 +14,13 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
@@ -29,7 +29,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class TrayServer {
-    private static volatile TrayIcon trayIcon;
 
     public static final DateTimeFormatter pattern = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -115,41 +114,77 @@ public class TrayServer {
         put("softred", softRed);
     }};
 
+    public static void sendStringResponse(int code, String body, HttpExchange exchange) {
+        try (OutputStream os = exchange.getResponseBody();
+             ByteArrayInputStream bis = new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8))) {
+            exchange.sendResponseHeaders(code, body.length());
+            bis.transferTo(os);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static String getQueryParamValue(HttpExchange exchange, String key, String defaultValue) {
+        String query = exchange.getRequestURI().getQuery();
+        if (query == null) {
+            return defaultValue;
+        }
+        Map<String, String> queryMap = Pattern.compile("&")
+                .splitAsStream(query)
+                .map(s -> Arrays.copyOf(s.split("=", 2), 2))
+                .collect(Collectors.toMap(e -> e[0], e -> e[1]));
+        return queryMap.getOrDefault(key, defaultValue);
+    }
+
+//    public static boolean isMoreImportantImage(String currImage, String newImage) {
+//        if (newImage.equalsIgnoreCase("red")) {
+//            return true;
+//        } else if (newImage.equalsIgnoreCase("orange") && currImage.equalsIgnoreCase("green")) {
+//            return true;
+//        } else {
+//            return newImage.equalsIgnoreCase(currImage);
+//        }
+//    }
+
+//    public static boolean canSetImage(String currOrigin, String newOrigin, long lastImageSetMs, long nowMillis, String currImageStr, String newImageStr) {
+//        long msSinceLastSet = nowMillis - lastImageSetMs;
+//        if (currOrigin.equalsIgnoreCase(newOrigin)) {
+//            return true;
+//        } else if (msSinceLastSet >= 60000) {
+//            return true;
+//        } else {
+//            return isMoreImportantImage(currImageStr, newImageStr);
+//        }
+//    }
+
     public static final Image startImage = greenCircle;
 
     public static Image getImage(String base64) {
         return (new ImageIcon(decode(base64))).getImage();
     }
 
-    public static final AtomicReference<Image> currImage = new AtomicReference<>(startImage);
-    public static final AtomicLong lastImageSet = new AtomicLong(System.currentTimeMillis());
-    public static final AtomicReference<String> lastImageStr = new AtomicReference<>("green");
-    public static final AtomicReference<String> lastImageOrigin = new AtomicReference<>("default");
-    public static final AtomicReference<String> currLink = new AtomicReference<>("https://github.com/ivarref/tray-server");
-
-    public static synchronized void setImage(Image newImage) {
-        if (currImage.get() == newImage) {
+    public static synchronized void setImage(Config cfg, Image newImage) {
+        if (cfg.currImage.get() == newImage) {
             debug("same image requested, dropping request");
         } else {
-            currImage.set(newImage);
-            trayIcon.setImage(newImage);
+            cfg.currImage.set(newImage);
+            cfg.trayIcon.setImage(newImage);
         }
     }
 
-    private static void createAndShowGUI() {
+    public static TrayIcon createAndShowTray(String origin) {
         //Check the SystemTray support
         if (!SystemTray.isSupported()) {
             error("SystemTray is not supported");
             System.exit(1);
-            return;
         }
         final PopupMenu popup = new PopupMenu();
-        trayIcon = new TrayIcon(startImage);
+        final TrayIcon trayIcon = new TrayIcon(startImage);
         trayIcon.setImageAutoSize(true);
         final SystemTray tray = SystemTray.getSystemTray();
 
         // Create a popup menu components
-        MenuItem aboutItem = new MenuItem("About");
+        MenuItem aboutItem = new MenuItem("origin: " + origin);
         CheckboxMenuItem cb1 = new CheckboxMenuItem("Set auto size");
         CheckboxMenuItem cb2 = new CheckboxMenuItem("Set tooltip");
         Menu displayMenu = new Menu("Display");
@@ -179,12 +214,11 @@ public class TrayServer {
         } catch (AWTException e) {
             error("TrayIcon could not be added.");
             System.exit(1);
-            return;
         }
 
         trayIcon.addActionListener(e -> {
             try {
-                Desktop.getDesktop().browse(new URI(currLink.get()));
+                Desktop.getDesktop().browse(new URI(originToConfig.get(origin).link.get()));
             } catch (IOException | URISyntaxException ex) {
                 throw new RuntimeException(ex);
             }
@@ -242,63 +276,71 @@ public class TrayServer {
 
         exitItem.addActionListener(e -> {
             tray.remove(trayIcon);
-            info("Exiting");
-            System.exit(0);
+            originToConfig.remove(origin);
+            if (originToConfig.isEmpty()) {
+                info("Exiting");
+                System.exit(0);
+            } {
+                info("TrayIcon for origin " + origin + " exiting");
+            }
         });
-        info("Started!");
+        info("Started TrayIcon for origin " + origin);
+        return trayIcon;
     }
 
-    public static void sendStringResponse(int code, String body, HttpExchange exchange) {
-        try (OutputStream os = exchange.getResponseBody();
-             ByteArrayInputStream bis = new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8))) {
-            exchange.sendResponseHeaders(code, body.length());
-            bis.transferTo(os);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+
+    public static final class Config {
+        public final TrayIcon trayIcon;
+        public final AtomicLong lastImageSet;
+        public final AtomicReference<Image> currImage = new AtomicReference<>(startImage);
+        public final AtomicReference<String> lastImageStr = new AtomicReference<>("green");
+        public final AtomicReference<String> link = new AtomicReference<>("https://github.com/ivarref/tray-server");
+
+        public Config(TrayIcon trayIcon, long lastImageSet) {
+            this.trayIcon = trayIcon;
+            this.lastImageSet = new AtomicLong(lastImageSet);
         }
     }
 
-    public static String getQueryParamValue(HttpExchange exchange, String key, String defaultValue) {
-        String query = exchange.getRequestURI().getQuery();
-        if (query == null) {
-            return defaultValue;
-        }
-        Map<String, String> queryMap = Pattern.compile("&")
-                .splitAsStream(query)
-                .map(s -> Arrays.copyOf(s.split("=", 2), 2))
-                .collect(Collectors.toMap(e -> e[0], e -> e[1]));
-        return queryMap.getOrDefault(key, defaultValue);
+    public static final ConcurrentHashMap<String, Config> originToConfig = new ConcurrentHashMap<>();
+
+    public static Config getConfig(String origin) {
+        return originToConfig.computeIfAbsent(origin, o -> new Config(createAndShowTray(origin), 0));
     }
 
-    public static boolean isMoreImportantImage(String currImage, String newImage) {
-        if (newImage.equalsIgnoreCase("red")) {
-            return true;
-        } else if (newImage.equalsIgnoreCase("orange") && currImage.equalsIgnoreCase("green")) {
-            return true;
+    public static void handleRequest(HttpExchange exchange) throws Exception {
+        String path = exchange.getRequestURI().getPath();
+        String newImgStr = getQueryParamValue(exchange, "img", "<missing>");
+        String origin = getQueryParamValue(exchange, "origin", "default");
+        Image newImage = images.getOrDefault(newImgStr, null);
+        long nowMs = System.currentTimeMillis();
+        String newLink = getQueryParamValue(exchange, "link", "::none");
+
+        if (newImage == null) {
+            warn("Unknown img parameter: " + newImgStr);
+            warn("Valid img values are: " + images.keySet());
+            sendStringResponse(200, "OK: no image requested. See usage at https://github.com/ivarref/tray-server\n", exchange);
         } else {
-            return newImage.equalsIgnoreCase(currImage);
-        }
-    }
-
-    public static boolean canSetImage(String currOrigin, String newOrigin, long lastImageSetMs, long nowMillis, String currImageStr, String newImageStr) {
-        long msSinceLastSet = nowMillis - lastImageSetMs;
-        if (currOrigin.equalsIgnoreCase(newOrigin)) {
-            return true;
-        } else if (msSinceLastSet >= 60000) {
-            return true;
-        } else {
-            return isMoreImportantImage(currImageStr, newImageStr);
+            Config cfg = getConfig(origin);
+            cfg.lastImageSet.set(nowMs);
+            cfg.lastImageStr.set(newImgStr);
+            if (!newLink.equals("::none")) {
+                cfg.link.set(newLink);
+            }
+            setImage(cfg, newImage);
+            info("request for path: " + path + " with img: " + newImgStr + " link: " + newLink + " origin: " + origin);
+            sendStringResponse(200, "OK\n", exchange);
         }
     }
 
     public static void main(String[] args) throws IOException {
         info("TrayMonitor starting");
         UIManager.put("swing.boldMetal", Boolean.FALSE);
-        SwingUtilities.invokeLater(TrayServer::createAndShowGUI);
+//        SwingUtilities.invokeLater(TrayServer::createAndShowGUI);
 
         HttpServer server;
         try {
-             server = HttpServer.create(new InetSocketAddress("localhost", 17999), 0);
+            server = HttpServer.create(new InetSocketAddress("localhost", 17999), 0);
         } catch (BindException e) {
             error("Could not bind to localhost:17999. Is TrayServer already running?");
             error("Exiting");
@@ -308,52 +350,28 @@ public class TrayServer {
 
         server.createContext("/", exchange -> {
             try {
-                String path = exchange.getRequestURI().getPath();
-                String newImgStr = getQueryParamValue(exchange, "img", "<missing>");
-                String newImgOrigin = getQueryParamValue(exchange, "origin", "default");
-                Image newImage = images.getOrDefault(newImgStr, null);
-                long nowMs = System.currentTimeMillis();
-                String newLink = getQueryParamValue(exchange, "link", "::none");
-
-                if (newImage == null) {
-                    warn("Unknown img parameter: " + newImgStr);
-                    warn("Valid img values are: " + images.keySet());
-                    sendStringResponse(200, "OK: no image requested. See usage at https://github.com/ivarref/tray-server\n", exchange);
-                } else if (canSetImage(lastImageOrigin.get(), newImgOrigin, lastImageSet.get(), nowMs, lastImageStr.get(), newImgStr)) {
-                    lastImageSet.set(System.currentTimeMillis());
-                    lastImageStr.set(newImgStr);
-                    lastImageOrigin.set(newImgOrigin);
-                    setImage(newImage);
-                    if (!newLink.equals("::none")) {
-                        currLink.set(newLink);
-                    }
-                    info("request for path: " + path + " with img: " + newImgStr + " link: " + newLink + " origin: " + newImgOrigin);
-                    sendStringResponse(200, "OK\n", exchange);
-                } else {
-                    info("ignoring request for path: " + path + " with img: " + newImgStr + " link: " + newLink + " origin: " + newImgOrigin);
-                    sendStringResponse(200, "OK: ignore request\n", exchange);
-                }
+                handleRequest(exchange);
             } catch (Throwable t) {
                 t.printStackTrace();
                 sendStringResponse(500, "500 Internal server error: " + t.getMessage() + " of type " + t.getClass().getSimpleName() + "\n", exchange);
             }
         });
         ExecutorService executor = Executors.newFixedThreadPool(4);
-        executor.submit(() -> {
-                    while (!Thread.interrupted()) {
-                        try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                            return;
-                        }
-                        long noDataMillis = System.currentTimeMillis() - lastImageSet.get();
-                        if (Duration.ofMillis(noDataMillis).toMinutes() >= 5) {
-                            Image maybeSoftImage = images.getOrDefault("soft" + lastImageStr.get(), currImage.get());
-                            setImage(maybeSoftImage);
-                        }
-                    }
-                }
-        );
+//        executor.submit(() -> {
+//                    while (!Thread.interrupted()) {
+//                        try {
+//                            Thread.sleep(1000);
+//                        } catch (InterruptedException e) {
+//                            return;
+//                        }
+//                        long noDataMillis = System.currentTimeMillis() - lastImageSet.get();
+//                        if (Duration.ofMillis(noDataMillis).toMinutes() >= 5) {
+//                            Image maybeSoftImage = images.getOrDefault("soft" + lastImageStr.get(), currImage.get());
+//                            setImage(maybeSoftImage);
+//                        }
+//                    }
+//                }
+//        );
         server.setExecutor(executor);
         server.start();
         info("WebServer running at http://localhost:17999");
