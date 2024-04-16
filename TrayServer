@@ -16,10 +16,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -286,6 +283,7 @@ public class TrayServer {
     }
 
     public static void handleRequest(HttpExchange exchange) throws Exception {
+        long startNanos = System.nanoTime();
         String path = exchange.getRequestURI().getPath();
         String newImgStr = getQueryParamValue(exchange, "img", "<missing>");
         String origin = getQueryParamValue(exchange, "origin", "default");
@@ -305,8 +303,10 @@ public class TrayServer {
                 cfg.link.set(newLink);
             }
             setImage(cfg, newImage);
-            info("request for path: " + path + " with img: " + newImgStr + " link: " + newLink + " origin: " + origin);
             sendStringResponse(200, "OK\n", exchange);
+            long usedMicros = (System.nanoTime() - startNanos) / 1000;
+            info("request for path: " + path + " with img: " + newImgStr + " link: " + newLink + " origin: " + origin
+                    + " in " + String.format(Locale.US, "%,d", usedMicros) + " µs");
         }
     }
 
