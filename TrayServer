@@ -92,7 +92,6 @@ public class TrayServer {
 
     // https://www.iconsdb.com/green-icons/circle-icon.html 32x32 png
     public static final Image greenCircle = getImage("iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAA7EAAAOxAGVKw4bAAAB20lEQVRYhcXXvWsUQRjH8U/GQ8UqHBLBQoKdICGoXXwJhIBFGv8AGxEL0cLKwsIBEUURrATBShHBzkYscr70KlekCIIxhBAsNIQrYrhCLMbhYu4km+Pu9tft7rDf78zsy/MMKZqogpOYxjEcxjACGlhEHe8wK9ooctuhAuD9uIqLOFhQdw1PcV+03J1AFHAZt6SZdpMN3MNtUbO4QDSMFzjbJXhrPuOcaGl7gWgENRztETxnGdOi+f8LpJl/wFiP4TkrmBAt5hNhEzzgWR/hpIf4lWhvuwCXMNNHeM4YbuaDtAVp6b+iOgABaOKIaCGvwJUBwmE3rsPQ373/hkMDFIB1HAg4UQIc9mEmYLIEeM5UwPESBcYDRksUGA26/9H0IpWw/Zj+JhcTZaUZaP0YSshSwKcSBeoBb0sUqAV8VM42rON1EP3G4xIEXooa+TV8hB8DhDdxh1yQRA3cGKDAQ9GXlkDKE7wZAHxOW0WUE1WlorTXFXHOCk6JFvKJfz/F0arUes31CT61Gd4ukCS+4wxmewivS+X4/NYLuzoOf++XSc+xigns6RK8gbs4L/rZaUCR5nQE13ABIwXBuTl90Kkd25lAS6SC09IzMi6151VpG9ewJC11zQ7a8z8geGNhy88fnQAAAABJRU5ErkJggg==");
-
     // https://www.iconsdb.com/guacamole-green-icons/circle-icon.html
     public static final Image softGreen = getImage("iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAA7EAAAOxAGVKw4bAAAB9UlEQVRYhcXXO2gUURSH8d9egohVCBLBQoLdgISggoVPCEGLNLZTiliIIlYWt7DQQVAEK0GwUljBzkYssoq9SorABsEYQggWIiFFCFuIxeyENYlksu7u/Lt5MN83Zx73nJqSqTezIZzBFI7jKIYRsIZFzOIDZtIkbpS5bq0E+CBu4ioOl/RdxQs8SpO43JVAvZkFXMc9+Z12kw08RJYmsVVaoN7MhvEKl7oEb80XXE6TuLSrQL2ZjaKBYz2CF1nGVJrE+X8KtO/8I8Z7DC+ygtNpEheLHaEDHvCyj3Dyl/hNvZnt3yaAa5juI7zIOO4WGzU2S/8NIwMQgBaSNIkLRQVuDBAO+3AHau1n/x1HBigA6zgUcLICOBzAdMCFCuBFJgNOVCgwETBWocBY0P1C04sMhd3P6W+KZqKqtIK8k6kqSwGfKxSYDXhfoUAj4JNqHsM63oY0ib/xrAKB12kS14rP8Cl+DhDewgPaDUmaxDXEAQo8SZP4dVOgned4NwD4nK0dUZF6MxuRN6W97oiLrOBsmsSFYsdfv+I0ib/ko9dcn+CTnfBtAm2JHziPmR7CZ+Xt+PzWAzsuRu1KXMQt/7dWbOA+TnXOAp0pM5yO4jauYLQkuBhOH+80ju1JoENkCOfk78iEfDwfkVdxFUvyUjfsYTz/AyNDf+XwTOOTAAAAAElFTkSuQmCC");
 
@@ -135,27 +134,6 @@ public class TrayServer {
                 .collect(Collectors.toMap(e -> e[0], e -> e[1]));
         return queryMap.getOrDefault(key, defaultValue);
     }
-
-//    public static boolean isMoreImportantImage(String currImage, String newImage) {
-//        if (newImage.equalsIgnoreCase("red")) {
-//            return true;
-//        } else if (newImage.equalsIgnoreCase("orange") && currImage.equalsIgnoreCase("green")) {
-//            return true;
-//        } else {
-//            return newImage.equalsIgnoreCase(currImage);
-//        }
-//    }
-
-//    public static boolean canSetImage(String currOrigin, String newOrigin, long lastImageSetMs, long nowMillis, String currImageStr, String newImageStr) {
-//        long msSinceLastSet = nowMillis - lastImageSetMs;
-//        if (currOrigin.equalsIgnoreCase(newOrigin)) {
-//            return true;
-//        } else if (msSinceLastSet >= 60000) {
-//            return true;
-//        } else {
-//            return isMoreImportantImage(currImageStr, newImageStr);
-//        }
-//    }
 
     public static final Image startImage = greenCircle;
 
@@ -287,7 +265,6 @@ public class TrayServer {
         info("Started TrayIcon for origin " + origin);
         return trayIcon;
     }
-
 
     public static final class Config {
         public final TrayIcon trayIcon;
