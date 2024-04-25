@@ -13,12 +13,11 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
@@ -254,7 +253,8 @@ public class TrayServer {
             if (originToConfig.isEmpty()) {
                 info("Exiting");
                 System.exit(0);
-            } {
+            }
+            {
                 info("TrayIcon for origin " + origin + " exiting");
             }
         });
@@ -333,21 +333,17 @@ public class TrayServer {
             }
         });
         ExecutorService executor = Executors.newFixedThreadPool(4);
-//        executor.submit(() -> {
-//                    while (!Thread.interrupted()) {
-//                        try {
-//                            Thread.sleep(1000);
-//                        } catch (InterruptedException e) {
-//                            return;
-//                        }
-//                        long noDataMillis = System.currentTimeMillis() - lastImageSet.get();
-//                        if (Duration.ofMillis(noDataMillis).toMinutes() >= 5) {
-//                            Image maybeSoftImage = images.getOrDefault("soft" + lastImageStr.get(), currImage.get());
-//                            setImage(maybeSoftImage);
-//                        }
-//                    }
-//                }
-//        );
+        ScheduledExecutorService scheduled = Executors.newSingleThreadScheduledExecutor();
+        scheduled.scheduleAtFixedRate(() -> {
+            for (Config cfg : originToConfig.values()) {
+                long noDataMillis = System.currentTimeMillis() - cfg.lastImageSet.get();
+                if (Duration.ofMillis(noDataMillis).toMinutes() >= 3) {
+                    Image maybeSoftImage = images.getOrDefault("soft" + cfg.lastImageStr.get(), cfg.currImage.get());
+                    setImage(cfg, maybeSoftImage);
+                }
+            }
+        }, 3, 3, TimeUnit.SECONDS);
+
         server.setExecutor(executor);
         server.start();
         info("WebServer running at http://localhost:17999");
