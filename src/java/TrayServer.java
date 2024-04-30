@@ -304,13 +304,13 @@ public class TrayServer {
             setImage(cfg, newImage);
             sendStringResponse(200, "OK\n", exchange);
             long usedMicros = (System.nanoTime() - startNanos) / 1000;
-            info("request for path: " + path + " with img: " + newImgStr + " link: " + newLink + " origin: " + origin
+            debug("request for path: " + path + " with img: " + newImgStr + " link: " + newLink + " origin: " + origin
                     + " in " + String.format(Locale.US, "%,d", usedMicros) + " µs");
         }
     }
 
     public static void main(String[] args) throws IOException {
-        info("TrayMonitor starting");
+        debug("TrayMonitor starting");
         UIManager.put("swing.boldMetal", Boolean.FALSE);
 //        SwingUtilities.invokeLater(TrayServer::createAndShowGUI);
 
