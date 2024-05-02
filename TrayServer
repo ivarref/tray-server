@@ -338,7 +338,7 @@ public class TrayServer {
         scheduled.scheduleAtFixedRate(() -> {
             for (Config cfg : originToConfig.values()) {
                 long noDataMillis = System.currentTimeMillis() - cfg.lastImageSet.get();
-                if (Duration.ofMillis(noDataMillis).toMinutes() >= 3) {
+                if (Duration.ofMillis(noDataMillis).toMinutes() >= 1) {
                     Image maybeSoftImage = images.getOrDefault("soft" + cfg.lastImageStr.get(), cfg.currImage.get());
                     setImage(cfg, maybeSoftImage);
                 }
